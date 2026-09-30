@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LevelUp</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, sans-serif;
+    background: #14141c;
+    color: #eee;
+    margin: 0;
+    padding: 16px;
+  }
+  h1 { text-align: center; color: #7c5cff; }
+  .card {
+    background: #1e1e2b;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  input {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #0f0f16;
+    color: #eee;
+  }
+  button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+    border: none;
+    border-radius: 8px;
+    background: #7c5cff;
+    color: white;
+    font-weight: bold;
+  }
+  .item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+  }
+  .item.done { opacity: 0.5; text-decoration: line-through; }
+  .small-btn {
+    width: auto;
+    padding: 4px 10px;
+    margin-left: 6px;
+    font-size: 14px;
+  }
+  .xp-bar-bg {
+    background: #0f0f16;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 16px;
+    margin: 8px 0;
+  }
+  .xp-bar-fill {
+    background: #7c5cff;
+    height: 100%;
+  }
+  .stats { display: flex; justify-content: space-around; text-align: center; }
+  #message { text-align: center; color: #ffb020; min-height: 20px; }
+  #app { display: none; }
+</style>
+</head>
+<body>
+
+<h1>LevelUp</h1>
+<div id="message"></div>
+
+<div id="auth" class="card">
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="signup()">Sign Up</button>
+  <button onclick="login()">Log In</button>
+</div>
+
+<div id="app">
+  <div class="card">
+    <div class="stats">
+      <div><strong id="charLevel"></strong><br>Level</div>
+      <div><strong id="charFocus"></strong><br>Focus</div>
+      <div><strong id="charDiscipline"></strong><br>Discipline</div>
+      <div><strong id="charHealth"></strong><br>Health</div>
+    </div>
+    <div class="xp-bar-bg"><div id="xpBar" class="xp-bar-fill" style="width:0%"></div></div>
+    <div style="text-align:center" id="xpText"></div>
+  </div>
+
+  <div class="card">
+    <h3>Tasks</h3>
+    <input id="taskInput" placeholder="New task...">
+    <button onclick="addTask()">Add Task</button>
+    <div id="taskList"></div>
+  </div>
+
+  <div class="card">
+    <h3>Habits</h3>
+    <input id="habitInput" placeholder="New habit...">
+    <button onclick="addHabit()">Add Habit</button>
+    <div id="habitList"></div>
+  </div>
+
+  <button onclick="logout()" style="background:#444">Log Out</button>
+</div>
+
+<script>
+function showMessage(text) {
+  document.getElementById('message').textContent = text;
+  setTimeout(() => document.getElementById('message').textContent = '', 3000);
+}
+
+async function signup() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const res = await fetch('/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  const text = await res.text();
+  showMessage(text);
+}
+
+async function login() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const res = await fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  const text = await res.text();
+  showMessage(text);
+  if (res.ok) {
+    document.getElementById('auth').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadAll();
+  }
+}
+
+function logout() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth').style.display = 'block';
+  document.getElementById('username').value = '';
+  document.getElementById('password').value = '';
+}
+
+async function loadAll() {
+  loadCharacter();
+  loadTasks();
+  loadHabits();
+}
+
+async function loadCharacter() {
+  const res = await fetch('/character');
+  if (!res.ok) return;
+  const c = await res.json();
+  document.getElementById('charLevel').textContent = c.level;
+  document.getElementById('charFocus').textContent = c.focus;
+  document.getElementById('charDiscipline').textContent = c.discipline;
+  document.getElementById('charHealth').textContent = c.health;
+  const xpNeeded = c.level * 100;
+  const pct = Math.min(100, (c.xp / xpNeeded) * 100);
+  document.getElementById('xpBar').style.width = pct + '%';
+  document.getElementById('xpText').textContent = `${c.xp} / ${xpNeeded} XP`;
+}
+
+async function loadTasks() {
+  const res = await fetch('/tasks');
+  if (!res.ok) return;
+  const tasks = await res.json();
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  tasks.forEach(task => {
+    const div = document.createElement('div');
+    div.className = 'item' + (task.completed ? ' done' : '');
+    div.innerHTML = `
+      <span>${task.title}</span>
+      <span>
+        ${!task.completed ? `<button class="small-btn" onclick="completeTask(${task.id})">Done</button>` : ''}
+        <button class="small-btn" style="background:#993333" onclick="deleteTask(${task.id})">X</button>
+      </span>
+    `;
+    list.appendChild(div);
+  });
+}
+
+async function addTask() {
+  const input = document.getElementById('taskInput');
+  if (!input.value.trim()) return;
+  await fetch('/tasks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: input.value })
+  });
+  input.value = '';
+  loadTasks();
+}
+
+async function completeTask(id) {
+  const res = await fetch(`/tasks/${id}`, { method: 'PUT' });
+  const text = await res.text();
+  showMessage(text);
+  loadTasks();
+  loadCharacter();
+}
+
+async function deleteTask(id) {
+  await fetch(`/tasks/${id}`, { method: 'DELETE' });
+  loadTasks();
+}
+
+async function loadHabits() {
+  const res = await fetch('/habits');
+  if (!res.ok) return;
+  const habits = await res.json();
+  const list = document.getElementById('habitList');
+  list.innerHTML = '';
+  habits.forEach(habit => {
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `
+      <span>${habit.title} 🔥${habit.streak}</span>
+      <span>
+        <button class="small-btn" onclick="completeHabit(${habit.id})">Done</button>
+        <button class="small-btn" style="background:#993333" onclick="deleteHabit(${habit.id})">X</button>
+      </span>
+    `;
+    list.appendChild(div);
+  });
+}
+
+async function addHabit() {
+  const input = document.getElementById('habitInput');
+  if (!input.value.trim()) return;
+  await fetch('/habits', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: input.value })
+  });
+  input.value = '';
+  loadHabits();
+}
+
+async function completeHabit(id) {
+  const res = await fetch(`/habits/${id}/complete`, { method: 'POST' });
+  const text = await res.text();
+  showMessage(text);
+  loadHabits();
+  loadCharacter();
+}
+
+async function deleteHabit(id) {
+  await fetch(`/habits/${id}`, { method: 'DELETE' });
+  loadHabits();
+}
+</script>
+
+</body>
+</html>
